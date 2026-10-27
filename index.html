@@ -7,42 +7,37 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap">
 <style>
-/* Layout: one-screen field instrument — portrait viewfinder centered, control strip below. Single dark HUD look by choice. */
+/* Layout: one-screen field instrument — portrait viewfinder, control strip below. Single dark HUD look by choice. */
 :root{
-  --ground:#0c1114;
-  --panel:#141c21;
-  --line:#26343c;
-  --ink:#dfe8ec;
-  --muted:#8299a3;
-  --scan:#4fc3f7;
-  --safe:#4be38a;
-  --risk:#ff4d5e;
+  --ground:#0c1114; --panel:#141c21; --line:#26343c; --ink:#dfe8ec; --muted:#8299a3;
+  --scan:#4fc3f7; --safe:#4be38a; --risk:#ff4d5e;
   --hud:"Chakra Petch", ui-monospace, "SFMono-Regular", Menlo, monospace;
   --body:"Noto Sans TC", system-ui, -apple-system, "PingFang TC", sans-serif;
   color-scheme:dark;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box;
 }
 html,body{height:100%;margin:0}
-:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}
 [hidden]{display:none!important}
 body{margin:0;font-size:14px;background:var(--ground);color:var(--ink);font-family:var(--body);
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
   padding-block:12px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:12px}
-.view{position:relative;aspect-ratio:9/16;width:min(100%,calc((100dvh - 230px) * 9 / 16));min-width:220px;max-width:100%;
+.view{position:relative;aspect-ratio:9/16;width:min(100%,calc((100dvh - 250px) * 9 / 16));min-width:220px;max-width:100%;
   border-radius:14px;overflow:hidden;background:#000;box-shadow:0 0 0 1px var(--line)}
 canvas{display:block;width:100%;height:100%}
-.msg{position:absolute;left:12px;right:12px;bottom:44px;padding:10px 12px;border-radius:8px;background:rgba(12,17,20,.88);
+.msg{position:absolute;left:12px;right:12px;bottom:44px;padding:10px 12px;border-radius:8px;background:rgba(12,17,20,.9);
   border:1px solid var(--risk);font-size:13px;line-height:1.5}
+.msg.info{border-color:var(--scan)}
 .controls{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;width:100%;max-width:560px}
 button,label.btn{font-family:var(--hud);font-weight:600;font-size:13px;letter-spacing:.06em;text-transform:uppercase;
   color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 12px;cursor:pointer;
   display:inline-flex;align-items:center;gap:6px;min-height:40px}
-button span.zh,label.btn span.zh{font-family:var(--body);text-transform:none;letter-spacing:0;font-weight:500}
+.zh{font-family:var(--body);text-transform:none;letter-spacing:0;font-weight:500}
 button[aria-pressed="true"]{border-color:var(--scan);color:var(--scan)}
+button.primary{border-color:var(--safe);color:var(--safe)}
 button:focus-visible,label.btn:focus-within{outline:2px solid var(--scan);outline-offset:2px}
 input[type=file]{position:absolute;width:1px;height:1px;opacity:0}
 .note{max-width:560px;font-size:12.5px;line-height:1.6;color:var(--muted);text-align:center;text-wrap:balance;margin:0}
 .note b{color:var(--ink);font-weight:500}
-.msg.info{border-color:var(--scan)}
 </style>
 </head>
 <body>
@@ -53,356 +48,437 @@ input[type=file]{position:absolute;width:1px;height:1px;opacity:0}
 </div>
 
 <div class="controls">
-  <button id="btnDemo" aria-pressed="true">Demo <span class="zh">示範地形</span></button>
+  <button id="btnCam" class="primary" aria-pressed="false">Live <span class="zh">開啟相機</span></button>
   <label class="btn" for="file">Upload <span class="zh">上傳影片</span><input id="file" type="file" accept="video/*,image/*"></label>
-  <button id="btnCam" aria-pressed="false">Live <span class="zh">即時相機</span></button>
-  <button id="btnDepth" aria-pressed="false">Depth AI <span class="zh">深度模型</span></button>
-  <button id="btnHeat" aria-pressed="false">Heatmap <span class="zh">熱度圖</span></button>
+  <button id="btnDemo" aria-pressed="true">Demo <span class="zh">示範</span></button>
+  <button id="btnDepth" aria-pressed="false">Depth <span class="zh">深度</span></button>
+  <button id="btnView" aria-pressed="false">View <span class="zh" id="viewName">一般</span></button>
   <button id="btnPause" aria-pressed="false">Pause <span class="zh">暫停</span></button>
 </div>
-<p class="note">做法：把每一格畫面依<b>紋理粗糙度</b>和<b>陰影</b>評分，並追蹤地面位移讓標記貼著地面移動。開啟「深度模型」後會下載約 25MB 的 Depth Anything V2 模型，在手機上估計<b>相對深度</b>，把高低起伏大的地方扣分。這些都是影像推估，<b>不是真實的公尺數或抓地力量測</b>，請勿用來決定實際落腳點。</p>
+<p class="note">三道關卡依序進行：<b>① 角度</b>：陀螺儀確認鏡頭朝下看地面；<b>② 辨識</b>：AI 分出地面和障礙物（椅子、牆等），腳印只放在地面上；<b>③ 深度</b>：扣掉平地本來的遠近變化，只找凸起和凹陷。結果都是影像推估，<b>不是真實的抓地力或公尺數</b>，請勿用來決定實際落腳點。</p>
 
 <script>
 (() => {
-const stage = document.getElementById('stage');
-const ctx = stage.getContext('2d');
-const msgEl = document.getElementById('msg');
-const small = document.createElement('canvas');
-const sctx = small.getContext('2d', { willReadFrequently: true });
-const C = { scan:'#4fc3f7', safe:'#4be38a', risk:'#ff4d5e', ink:'#dfe8ec', panel:'rgba(10,16,20,0.82)' };
-const HUD = '"Chakra Petch", ui-monospace, Menlo, monospace';
+const TF_URL='https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.1';
+const SEG_MODEL='Xenova/segformer-b0-finetuned-ade-512-512';
+const DEPTH_MODEL='onnx-community/depth-anything-v2-small';
 
-let CW=0, CH=0, DPR=1, AW=120, AH=213, CELL=8, cols=15, rows=26;
-let prevGray=null, markers=[], nextSide='L', lastPick=0, heat=false, paused=false, lastAnalysis=null;
-let source={kind:'demo'}, demoT=0, lastTs=0, fps=60, shift={dx:0,dy:0};
+const stage=document.getElementById('stage'), ctx=stage.getContext('2d'), msgEl=document.getElementById('msg');
+const small=document.createElement('canvas'), sctx=small.getContext('2d',{willReadFrequently:true});
+const C={scan:'#4fc3f7',safe:'#4be38a',risk:'#ff4d5e',warn:'#ffb547',ink:'#dfe8ec',panel:'rgba(10,16,20,0.84)'};
+const HUD='"Chakra Petch", ui-monospace, Menlo, monospace';
+const ZH='"Noto Sans TC","PingFang TC",system-ui,sans-serif';
+
+let CW=0,CH=0,DPR=1,AW=120,AH=213,CELL=8,cols=15,rows=26;
+let prevGray=null,markers=[],nextSide='L',lastPick=0,paused=false,analysis=null,gate={ok:false,reason:'init'};
+let source={kind:'demo'},demoT=0,lastTs=0,fps=60,shift={dx:0,dy:0},cumX=0,cumY=0,camStart=0;
+const VIEWS=['normal','seg','depth','score'], VIEW_ZH={normal:'一般',seg:'辨識',depth:'深度',score:'評分'}; let view='normal';
 const video=document.createElement('video'); video.muted=true; video.loop=true; video.playsInline=true; video.setAttribute('playsinline','');
-let imageEl=null, camStream=null;
-// depth model state
-let depthOn=false, depthPipe=null, depthBusy=false, lastDepth=0, depthMap=null, depthMs=0;
-const cap=document.createElement('canvas'); const capCtx=cap.getContext('2d');
+let imageEl=null,camStream=null;
 
-function showMsg(t){ msgEl.textContent=t; msgEl.hidden=!t; }
+function showMsg(t,info){ msgEl.textContent=t||''; msgEl.hidden=!t; msgEl.classList.toggle('info',!!info); }
 
 function resize(){
   const r=stage.getBoundingClientRect(); DPR=Math.min(2,window.devicePixelRatio||1);
-  CW=Math.max(2,Math.round(r.width*DPR)); CH=Math.max(2,Math.round(r.height*DPR));
-  stage.width=CW; stage.height=CH;
-  AW=120; AH=Math.round(AW*CH/CW); small.width=AW; small.height=AH;
-  cols=Math.floor(AW/CELL); rows=Math.floor(AH/CELL);
-  prevGray=null; markers=[];
+  CW=Math.max(2,Math.round(r.width*DPR)); CH=Math.max(2,Math.round(r.height*DPR)); stage.width=CW; stage.height=CH;
+  AW=120; AH=Math.round(AW*CH/CW); small.width=AW; small.height=AH; cols=Math.floor(AW/CELL); rows=Math.floor(AH/CELL);
+  prevGray=null; markers=[]; segMap=null; depthMap=null;
 }
 new ResizeObserver(resize).observe(stage);
 
-/* ---------- procedural demo terrain ---------- */
-const TW=540, TH=1600;
-const tex=document.createElement('canvas'); tex.width=TW; tex.height=TH;
+/* ================= ① TILT ================= */
+const tilt={has:false,beta:0,gamma:0,asked:false};
+function onOri(e){ if(e.beta==null) return; const k=tilt.has?0.25:1; tilt.beta+= (e.beta-tilt.beta)*k; tilt.gamma+=(e.gamma-tilt.gamma)*k; tilt.has=true; }
+async function enableTilt(){
+  if(tilt.asked) return; tilt.asked=true;
+  window.addEventListener('deviceorientation',onOri);
+  try{
+    if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+      const r=await DeviceOrientationEvent.requestPermission(); if(r!=='granted') showMsg('沒有取得陀螺儀權限，無法確認手機角度。可以重新整理頁面後再按「開啟相機」並允許「動作與方向」。',true); }
+  }catch(e){}
+}
+function tiltDown(){ return 90-tilt.beta; } // degrees the rear camera points below the horizon (portrait)
+
+/* ================= models ================= */
+let tf=null; async function getTF(){ if(!tf){ tf=await import(TF_URL); } return tf; }
+async function makePipe(task,model,gpuDtype){
+  const t=await getTF(); const gpu=!!navigator.gpu;
+  if(gpu){ try{ return await t.pipeline(task,model,{device:'webgpu',dtype:gpuDtype}); }catch(e){ console.warn('webgpu failed, using wasm',e); } }
+  return await t.pipeline(task,model,{device:'wasm',dtype:'q8'});
+}
+const seg={state:'idle',pipe:null,busy:false,last:0,ms:0}; let segMap=null;
+const dep={state:'idle',pipe:null,busy:false,last:0,ms:0,on:false}; let depthMap=null;
+const capS=document.createElement('canvas'), capD=document.createElement('canvas');
+
+const GROUND=new Set(['floor','road','grass','sidewalk','earth','field','rug','sand','path','stairs','stairway','runway','dirt track','land','step','mountain','rock','hill','carpet']);
+const WATER=new Set(['water','sea','river','lake','swimming pool','waterfall','pool']);
+const BACKDROP=new Set(['wall','sky','ceiling','building','windowpane','door','curtain','tree','skyscraper','house','fence','mirror','painting','blind']);
+function kindOf(label){ const n=String(label).toLowerCase().split(/[;,]/)[0].trim();
+  return GROUND.has(n)?1 : WATER.has(n)?3 : BACKDROP.has(n)?4 : 2; } // 1 ground, 2 obstacle, 3 water, 4 backdrop
+function shortName(label){ return String(label).split(/[;,]/)[0].trim(); }
+
+async function loadSeg(){
+  if(seg.state==='loading'||seg.state==='ready') return; seg.state='loading';
+  try{ seg.pipe=await makePipe('image-segmentation',SEG_MODEL,'fp32'); seg.state='ready'; }
+  catch(e){ console.error(e); seg.state='error'; showMsg('地面辨識模型載入失敗（網路或瀏覽器不支援）。請確認網路後重新整理頁面。'); }
+}
+async function loadDepth(){
+  if(dep.state==='loading'||dep.state==='ready') return; dep.state='loading';
+  try{ dep.pipe=await makePipe('depth-estimation',DEPTH_MODEL,'fp16'); dep.state='ready'; }
+  catch(e){ console.error(e); dep.state='error'; dep.on=false; btnDepth.setAttribute('aria-pressed','false'); showMsg('深度模型載入失敗。角度和地面辨識仍可正常使用。'); }
+}
+
+function grabFrame(cv,w){ const h=Math.round(w*CH/CW); if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;} cv.getContext('2d').drawImage(stage,0,0,w,h); return cv; }
+
+async function runSeg(ts){
+  seg.busy=true; seg.last=ts; const t0=performance.now(), ox=cumX, oy=cumY;
+  try{
+    const out=await seg.pipe((await getTF()).RawImage.fromCanvas(grabFrame(capS,320)));
+    const lab=new Uint8Array(AW*AH), names=['?'], kinds=[0];
+    for(const s of out){ const m=s.mask; if(!m) continue; const id=names.length; names.push(shortName(s.label)); kinds.push(kindOf(s.label));
+      const mw=m.width, mh=m.height, ch=m.channels||1, d=m.data;
+      for(let y=0;y<AH;y++){ const my=Math.min(mh-1,(y+0.5)*mh/AH|0)*mw; for(let x=0;x<AW;x++){ if(d[(my+Math.min(mw-1,(x+0.5)*mw/AW|0))*ch]>127) lab[y*AW+x]=id; } } }
+    segMap={lab,names,kinds,offX:ox,offY:oy,img:null};
+    seg.ms=seg.ms? seg.ms*0.8+(performance.now()-t0)*0.2 : performance.now()-t0;
+  }catch(e){ console.error(e); }
+  seg.busy=false;
+}
+async function runDepth(ts){
+  dep.busy=true; dep.last=ts; const t0=performance.now(), ox=cumX, oy=cumY;
+  try{
+    const out=await dep.pipe((await getTF()).RawImage.fromCanvas(grabFrame(capD,256)));
+    const d=out.depth; depthMap={data:d.data,w:d.width,h:d.height,ch:d.channels||1,offX:ox,offY:oy,img:null};
+    dep.ms=dep.ms? dep.ms*0.8+(performance.now()-t0)*0.2 : performance.now()-t0;
+  }catch(e){ console.error(e); }
+  dep.busy=false;
+}
+// sample maps in current-frame small coords, compensating motion since capture
+function segKind(x,y){ const m=segMap; if(!m) return 0; const mx=Math.round(x-(cumX-m.offX)), my=Math.round(y-(cumY-m.offY));
+  if(mx<0||my<0||mx>=AW||my>=AH) return 0; return m.kinds[m.lab[my*AW+mx]]; }
+function segId(x,y){ const m=segMap; const mx=Math.round(x-(cumX-m.offX)), my=Math.round(y-(cumY-m.offY));
+  if(mx<0||my<0||mx>=AW||my>=AH) return 0; return m.lab[my*AW+mx]; }
+function depthVal(x,y){ const m=depthMap; if(!m) return NaN; const mx=(x-(cumX-m.offX))/AW, my=(y-(cumY-m.offY))/AH;
+  if(mx<0||my<0||mx>=1||my>=1) return NaN; return m.data[((my*m.h|0)*m.w+(mx*m.w|0))*m.ch]; }
+
+/* ================= demo terrain ================= */
+const TW=540,TH=1600, tex=document.createElement('canvas'); tex.width=TW; tex.height=TH;
 (function buildTerrain(){
-  const g=tex.getContext('2d'); let seed=7;
-  const rnd=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647; };
+  const g=tex.getContext('2d'); let sd=7; const rnd=()=>{ sd=(sd*16807)%2147483647; return sd/2147483647; };
   g.fillStyle='#7d7873'; g.fillRect(0,0,TW,TH);
-  for(let i=0;i<26000;i++){ const v=90+rnd()*120|0, x=rnd()*TW, y=rnd()*TH, r=0.8+rnd()*2.6;
-    g.fillStyle=`rgb(${v},${v-3},${v-7})`; g.beginPath(); g.ellipse(x,y,r,r*(0.6+rnd()*0.6),rnd()*3,0,7); g.fill(); }
-  const crev=()=>{ let x=rnd()*TW, y=rnd()*TH; const pts=[[x,y]]; for(let k=0;k<9;k++){ x+= (rnd()-0.5)*90; y+= 20+rnd()*45; pts.push([x,y]); } return pts; };
-  for(let i=0;i<14;i++){ const pts=crev(), w=4+rnd()*9;
-    for(const off of [-TH,0,TH]){ g.strokeStyle='rgba(22,20,18,0.85)'; g.lineWidth=w; g.lineJoin='round'; g.beginPath();
-      pts.forEach(([x,y],k)=> k? g.lineTo(x,y+off): g.moveTo(x,y+off)); g.stroke(); } }
-  for(let i=0;i<58;i++){
-    const cx=rnd()*TW, cy=rnd()*TH, R=34+rnd()*62, n=7+(rnd()*5|0), rot=rnd()*6.28, pts=[];
-    for(let k=0;k<n;k++){ const a=rot+k/n*6.283, rr=R*(0.72+rnd()*0.42); pts.push([Math.cos(a)*rr, Math.sin(a)*rr*(0.7+rnd()*0.3)]); }
-    const base=170+rnd()*45|0, cracks=[]; for(let c=0;c<(rnd()*3|0);c++) cracks.push([(rnd()-0.5)*R,(rnd()-0.5)*R,(rnd()-0.5)*R,(rnd()-0.5)*R]);
+  for(let i=0;i<26000;i++){ const v=90+rnd()*120|0,x=rnd()*TW,y=rnd()*TH,r=0.8+rnd()*2.6; g.fillStyle=`rgb(${v},${v-3},${v-7})`; g.beginPath(); g.ellipse(x,y,r,r*(0.6+rnd()*0.6),rnd()*3,0,7); g.fill(); }
+  for(let i=0;i<14;i++){ let x=rnd()*TW,y=rnd()*TH; const pts=[[x,y]]; for(let k=0;k<9;k++){x+=(rnd()-0.5)*90;y+=20+rnd()*45;pts.push([x,y]);} const w=4+rnd()*9;
+    for(const off of [-TH,0,TH]){ g.strokeStyle='rgba(22,20,18,0.85)'; g.lineWidth=w; g.lineJoin='round'; g.beginPath(); pts.forEach(([px,py],k)=>k?g.lineTo(px,py+off):g.moveTo(px,py+off)); g.stroke(); } }
+  for(let i=0;i<58;i++){ const cx=rnd()*TW,cy=rnd()*TH,R=34+rnd()*62,n=7+(rnd()*5|0),rot=rnd()*6.28,pts=[];
+    for(let k=0;k<n;k++){ const a=rot+k/n*6.283,rr=R*(0.72+rnd()*0.42); pts.push([Math.cos(a)*rr,Math.sin(a)*rr*(0.7+rnd()*0.3)]); }
+    const base=170+rnd()*45|0;
     for(const off of [-TH,0,TH]){ const y=cy+off; if(y<-R*2||y>TH+R*2) continue;
-      const path=()=>{ g.beginPath(); pts.forEach(([px,py],k)=> k? g.lineTo(cx+px,y+py): g.moveTo(cx+px,y+py)); g.closePath(); };
+      const path=()=>{ g.beginPath(); pts.forEach(([px,py],k)=>k?g.lineTo(cx+px,y+py):g.moveTo(cx+px,y+py)); g.closePath(); };
       g.save(); g.translate(5,7); path(); g.fillStyle='rgba(28,26,24,0.65)'; g.fill(); g.restore();
       path(); const gr=g.createLinearGradient(cx-R,y-R,cx+R,y+R); gr.addColorStop(0,`rgb(${base+18},${base+16},${base+12})`); gr.addColorStop(1,`rgb(${base-22},${base-24},${base-28})`);
-      g.fillStyle=gr; g.fill(); g.strokeStyle='rgba(40,36,33,0.9)'; g.lineWidth=1.6; g.stroke();
-      g.strokeStyle='rgba(60,56,52,0.7)'; g.lineWidth=1; for(const [a,b,c2,d] of cracks){ g.beginPath(); g.moveTo(cx+a,y+b); g.lineTo(cx+c2,y+d); g.stroke(); }
-    }
-  }
+      g.fillStyle=gr; g.fill(); g.strokeStyle='rgba(40,36,33,0.9)'; g.lineWidth=1.6; g.stroke(); } }
 })();
-
-function drawBoot(g,x,y,w,h,ang){
-  g.save(); g.translate(x,y); g.rotate(ang);
-  g.fillStyle='#3a2a1e'; g.beginPath(); g.ellipse(0,0,w/2,h/2,0,0,7); g.fill();
-  g.fillStyle='#5a4330'; g.beginPath(); g.ellipse(0,-h*0.12,w*0.36,h*0.3,0,0,7); g.fill();
-  g.strokeStyle='#c9b48f'; g.lineWidth=w*0.04; for(let i=0;i<4;i++){ g.beginPath(); g.moveTo(-w*0.15,-h*0.25+i*h*0.09); g.lineTo(w*0.15,-h*0.25+i*h*0.09); g.stroke(); }
-  g.restore();
-}
-
+function drawBoot(g,x,y,w,h,ang){ g.save(); g.translate(x,y); g.rotate(ang); g.fillStyle='#3a2a1e'; g.beginPath(); g.ellipse(0,0,w/2,h/2,0,0,7); g.fill();
+  g.fillStyle='#5a4330'; g.beginPath(); g.ellipse(0,-h*0.12,w*0.36,h*0.3,0,0,7); g.fill(); g.restore(); }
 function drawDemo(dt){
-  if(!paused) demoT+=dt;
-  const scale=CW/TW*1.08, ox=-CW*0.04+Math.sin(demoT*1.1)*CW*0.025;
-  const speed=62, s=((demoT*speed)%TH)*scale, hh=TH*scale;
+  if(!paused) demoT+=dt; const scale=CW/TW*1.08, ox=-CW*0.04+Math.sin(demoT*1.1)*CW*0.025, s=((demoT*62)%TH)*scale, hh=TH*scale;
   ctx.drawImage(tex,ox,s,TW*scale,hh); ctx.drawImage(tex,ox,s-hh,TW*scale,hh);
-  // vignette + boots (bottom zone, excluded from analysis)
-  const ph=demoT*3.1, bw=CW*0.17, bh=CW*0.3;
-  drawBoot(ctx,CW*0.36,CH*1.0-Math.max(0,Math.sin(ph))*CH*0.05,bw,bh,-0.12);
-  drawBoot(ctx,CW*0.64,CH*1.0-Math.max(0,Math.sin(ph+Math.PI))*CH*0.05,bw,bh,0.12);
+  const ph=demoT*3.1,bw=CW*0.17,bh=CW*0.3;
+  drawBoot(ctx,CW*0.36,CH-Math.max(0,Math.sin(ph))*CH*0.05,bw,bh,-0.12); drawBoot(ctx,CW*0.64,CH-Math.max(0,Math.sin(ph+Math.PI))*CH*0.05,bw,bh,0.12);
 }
+function drawCover(el,iw,ih){ if(!iw||!ih){ ctx.fillStyle='#000'; ctx.fillRect(0,0,CW,CH); return false; }
+  const s=Math.max(CW/iw,CH/ih),w=iw*s,h=ih*s; ctx.drawImage(el,(CW-w)/2,(CH-h)/2,w,h); return true; }
 
-function drawCover(el,iw,ih){
-  if(!iw||!ih){ ctx.fillStyle='#000'; ctx.fillRect(0,0,CW,CH); return false; }
-  const s=Math.max(CW/iw,CH/ih), w=iw*s, h=ih*s; ctx.drawImage(el,(CW-w)/2,(CH-h)/2,w,h); return true;
-}
-
-/* ---------- analysis ---------- */
-function toGray(){
-  sctx.drawImage(stage,0,0,AW,AH);
-  const d=sctx.getImageData(0,0,AW,AH).data, g=new Float32Array(AW*AH);
-  for(let i=0,j=0;i<g.length;i++,j+=4) g[i]=0.299*d[j]+0.587*d[j+1]+0.114*d[j+2];
-  return g;
-}
-
+/* ================= texture + tracking ================= */
+function toGray(){ sctx.drawImage(stage,0,0,AW,AH); const d=sctx.getImageData(0,0,AW,AH).data,g=new Float32Array(AW*AH);
+  for(let i=0,j=0;i<g.length;i++,j+=4) g[i]=0.299*d[j]+0.587*d[j+1]+0.114*d[j+2]; return g; }
 function track(prev,cur){
-  const R=7, st=3, x0=R+2, x1=AW-R-2, y0=Math.max(R+2,AH*0.12|0), y1=Math.min(AH-R-2,AH*0.8|0), N=2*R+1;
-  const cost=new Float32Array(N*N); let best=Infinity, bi=0;
-  for(let dy=-R;dy<=R;dy++) for(let dx=-R;dx<=R;dx++){
-    let s=0; for(let y=y0;y<y1;y+=st){ const ro=y*AW, rp=(y-dy)*AW-dx; for(let x=x0;x<x1;x+=st) s+=Math.abs(cur[ro+x]-prev[rp+x]); }
-    const k=(dy+R)*N+(dx+R); cost[k]=s; if(s<best){best=s;bi=k;}
-  }
-  let ix=bi%N, iy=bi/N|0, fx=0, fy=0;
-  const sub=(a,b,c)=>{ const den=a-2*b+c; return den>0? 0.5*(a-c)/den : 0; };
-  if(ix>0&&ix<N-1) fx=sub(cost[iy*N+ix-1],cost[bi],cost[iy*N+ix+1]);
-  if(iy>0&&iy<N-1) fy=sub(cost[(iy-1)*N+ix],cost[bi],cost[(iy+1)*N+ix]);
-  return {dx:ix-R+fx, dy:iy-R+fy};
+  const R=7,st=3,x0=R+2,x1=AW-R-2,y0=Math.max(R+2,AH*0.12|0),y1=Math.min(AH-R-2,AH*0.8|0),N=2*R+1,cost=new Float32Array(N*N); let best=Infinity,bi=0;
+  for(let dy=-R;dy<=R;dy++) for(let dx=-R;dx<=R;dx++){ let s=0; for(let y=y0;y<y1;y+=st){ const ro=y*AW,rp=(y-dy)*AW-dx; for(let x=x0;x<x1;x+=st) s+=Math.abs(cur[ro+x]-prev[rp+x]); }
+    const k=(dy+R)*N+(dx+R); cost[k]=s; if(s<best){best=s;bi=k;} }
+  const ix=bi%N,iy=bi/N|0, sub=(a,b,c)=>{const den=a-2*b+c; return den>0?0.5*(a-c)/den:0;}; let fx=0,fy=0;
+  if(ix>0&&ix<N-1) fx=sub(cost[iy*N+ix-1],cost[bi],cost[iy*N+ix+1]); if(iy>0&&iy<N-1) fy=sub(cost[(iy-1)*N+ix],cost[bi],cost[(iy+1)*N+ix]);
+  return {dx:ix-R+fx,dy:iy-R+fy};
 }
 
+/* ================= ③ depth: ground-plane residual ================= */
+function planeRelief(isGround){
+  if(!depthMap) return null;
+  const zy0=AH*0.15|0, zy1=AH*0.8|0, xs=[],ys=[],ds=[];
+  for(let y=zy0;y<zy1;y+=3) for(let x=1;x<AW-1;x+=3){ if(!isGround(x,y)) continue; const d=depthVal(x,y); if(!isNaN(d)){xs.push(x);ys.push(y);ds.push(d);} }
+  if(ds.length<60) return null;
+  let keep=ds.map(()=>true), P=null;
+  for(let it=0;it<3;it++){
+    let a=[0,0,0,0,0,0,0,0,0], b=[0,0,0];
+    for(let i=0;i<ds.length;i++){ if(!keep[i]) continue; const v=[xs[i],ys[i],1]; for(let r=0;r<3;r++){ b[r]+=v[r]*ds[i]; for(let c=0;c<3;c++) a[r*3+c]+=v[r]*v[c]; } }
+    P=solve3(a,b); if(!P) return null;
+    const res=ds.map((d,i)=>Math.abs(d-(P[0]*xs[i]+P[1]*ys[i]+P[2]))); const kept=res.filter((r,i)=>keep[i]).sort((p,q)=>p-q);
+    const mad=kept[kept.length>>1]||1; keep=res.map(r=>r<Math.max(3,3*mad));
+  }
+  let lo=Infinity,hi=-Infinity; for(let i=0;i<ds.length;i++){ const f=P[0]*xs[i]+P[1]*ys[i]+P[2]; lo=Math.min(lo,f); hi=Math.max(hi,f); }
+  const span=hi-lo; if(span<8) return null;
+  const rel=new Float32Array(cols*rows);
+  for(let cy=0;cy<rows;cy++) for(let cx=0;cx<cols;cx++){ let s=0,n=0;
+    for(let y=cy*CELL+1;y<cy*CELL+CELL;y+=2) for(let x=cx*CELL+1;x<cx*CELL+CELL;x+=2){ const d=depthVal(x,y); if(isNaN(d)) continue; s+=d-(P[0]*x+P[1]*y+P[2]); n++; }
+    rel[cy*cols+cx]= n? (s/n)/span : 0; }
+  return {rel,span};
+}
+function solve3(a,b){ const m=[[a[0],a[1],a[2],b[0]],[a[3],a[4],a[5],b[1]],[a[6],a[7],a[8],b[2]]];
+  for(let i=0;i<3;i++){ let p=i; for(let r=i+1;r<3;r++) if(Math.abs(m[r][i])>Math.abs(m[p][i])) p=r; [m[i],m[p]]=[m[p],m[i]]; if(Math.abs(m[i][i])<1e-9) return null;
+    for(let r=0;r<3;r++){ if(r===i) continue; const f=m[r][i]/m[i][i]; for(let c=i;c<4;c++) m[r][c]-=f*m[i][c]; } }
+  return [m[0][3]/m[0][0],m[1][3]/m[1][1],m[2][3]/m[2][2]]; }
+
+/* ================= ② + ③ cell analysis ================= */
 function analyse(g){
-  let sum=0,sq=0,n=0; const zy0=AH*0.15|0, zy1=AH*0.8|0;
-  for(let y=zy0;y<zy1;y++) for(let x=0;x<AW;x++){ const v=g[y*AW+x]; sum+=v; sq+=v*v; n++; }
-  const mean=sum/n, sd=Math.sqrt(Math.max(1,sq/n-mean*mean)), darkT=mean-0.9*sd;
-  const edge=new Float32Array(cols*rows), dark=new Float32Array(cols*rows), stab=new Float32Array(cols*rows);
+  const useSeg= source.kind!=='demo' && !!segMap;
+  const isGround=(x,y)=> useSeg? segKind(x,y)===1 : true;
+  const n=cols*rows, gfr=new Float32Array(n), ofr=new Float32Array(n), wfr=new Float32Array(n), obsId=new Int16Array(n), edge=new Float32Array(n), dark=new Float32Array(n), stab=new Float32Array(n);
+  // brightness stats over ground pixels only
+  let sum=0,sq=0,cnt=0; const zy0=AH*0.15|0, zy1=AH*0.8|0;
+  for(let y=zy0;y<zy1;y+=2) for(let x=0;x<AW;x+=2){ if(!isGround(x,y)) continue; const v=g[y*AW+x]; sum+=v; sq+=v*v; cnt++; }
+  const mean=cnt?sum/cnt:128, sd=cnt?Math.sqrt(Math.max(1,sq/cnt-mean*mean)):40, darkT=mean-1.3*sd;
+  let zoneG=0, zoneN=0; const seen={};
   for(let cy=0;cy<rows;cy++) for(let cx=0;cx<cols;cx++){
-    let e=0,dk=0,c=0;
+    let e=0,dk=0,c=0,gc=0,oc=0,wc=0,tot=0; const votes={};
     for(let y=cy*CELL;y<cy*CELL+CELL;y++){ if(y<1||y>=AH-1) continue;
-      for(let x=cx*CELL;x<cx*CELL+CELL;x++){ if(x<1||x>=AW-1) continue; const i=y*AW+x;
-        const gx=-g[i-AW-1]-2*g[i-1]-g[i+AW-1]+g[i-AW+1]+2*g[i+1]+g[i+AW+1];
-        const gy=-g[i-AW-1]-2*g[i-AW]-g[i-AW+1]+g[i+AW-1]+2*g[i+AW]+g[i+AW+1];
+      for(let x=cx*CELL;x<cx*CELL+CELL;x++){ if(x<1||x>=AW-1) continue; const i=y*AW+x; tot++;
+        const k= useSeg? segKind(x,y) : 1;
+        if(k===1) gc++; else if(k===2){ oc++; const id=segId(x,y); votes[id]=(votes[id]||0)+1; } else if(k===3) wc++;
+        if(k!==1) continue;
+        const gx=-g[i-AW-1]-2*g[i-1]-g[i+AW-1]+g[i-AW+1]+2*g[i+1]+g[i+AW+1], gy=-g[i-AW-1]-2*g[i-AW]-g[i-AW+1]+g[i+AW-1]+2*g[i+AW]+g[i+AW+1];
         e+=Math.sqrt(gx*gx+gy*gy); if(g[i]<darkT) dk++; c++; } }
-    const k=cy*cols+cx; edge[k]=c? e/c:0; dark[k]=c? dk/c:0;
+    const k=cy*cols+cx; gfr[k]=tot?gc/tot:0; ofr[k]=tot?oc/tot:0; wfr[k]=tot?wc/tot:0; edge[k]=c?e/c:0; dark[k]=c?dk/c:0;
+    let bid=0,bv=0; for(const id in votes) if(votes[id]>bv){bv=votes[id];bid=+id;} obsId[k]=bid;
+    if(cy>=rows*0.15&&cy<rows*0.8){ zoneN++; zoneG+=gfr[k]; if(bid&&ofr[k]>0.3) seen[bid]=(seen[bid]||0)+1; }
   }
-  const sorted=Array.from(edge).sort((a,b)=>a-b), p90=sorted[Math.floor(sorted.length*0.9)]||1;
-  const slope=new Float32Array(cols*rows);
-  if(depthOn&&depthMap){
-    const dc=new Float32Array(cols*rows), {data,width:dw,height:dh,ch}=depthMap;
-    for(let cy=0;cy<rows;cy++) for(let cx=0;cx<cols;cx++){
-      let s=0,c=0; for(let sy=0;sy<3;sy++) for(let sx=0;sx<3;sx++){
-        const u=(cx+(sx+0.5)/3)/cols, v=(cy+(sy+0.5)/3)/rows;
-        s+=data[(Math.min(dh-1,v*dh|0)*dw+Math.min(dw-1,u*dw|0))*ch]; c++; }
-      dc[cy*cols+cx]=s/c/255; }
-    for(let cy=0;cy<rows;cy++) for(let cx=0;cx<cols;cx++){
-      const at=(x,y)=>dc[Math.max(0,Math.min(rows-1,y))*cols+Math.max(0,Math.min(cols-1,x))];
-      slope[cy*cols+cx]=Math.abs(at(cx+1,cy)-at(cx-1,cy))+Math.abs(at(cx,cy+1)-at(cx,cy-1)); }
-    const ss=Array.from(slope).sort((a,b)=>a-b), q=ss[Math.floor(ss.length*0.9)]||1;
-    for(let k=0;k<slope.length;k++) slope[k]=Math.min(1,slope[k]/q);
+  const ge=[]; for(let k=0;k<n;k++) if(gfr[k]>0.6) ge.push(edge[k]); ge.sort((p,q)=>p-q);
+  const eRef=Math.max(45, ge.length? ge[Math.floor(ge.length*0.9)] : 45); // fixed floor: a smooth floor is not amplified into "rough"
+  const relief= (dep.on && (source.kind==='demo'||segMap)) ? planeRelief(isGround) : null;
+  for(let k=0;k<n;k++){
+    const en=Math.min(1,edge[k]/eRef); edge[k]=en;
+    let s=1.1-0.75*en-0.9*dark[k];
+    if(relief) s-=0.9*Math.min(1,Math.abs(relief.rel[k])/0.15);
+    stab[k]= gfr[k]<0.6 ? 0 : Math.max(0,Math.min(1,s));
   }
-  for(let k=0;k<edge.length;k++){ const en=Math.min(1,edge[k]/p90); edge[k]=en;
-    const tex=1-0.8*en-1.4*dark[k]+0.15;
-    stab[k]=Math.max(0,Math.min(1, depthOn&&depthMap? tex*0.6+0.4-0.75*slope[k] : tex)); }
-  return {edge,dark,stab,slope};
+  const top=Object.entries(seen).sort((p,q)=>q[1]-p[1]).slice(0,3).map(([id])=>segMap.names[id]);
+  return {gfr,ofr,wfr,obsId,edge,dark,stab,relief,groundZone:zoneN?zoneG/zoneN:0,seenObstacles:top,useSeg};
 }
-
-function windowScore(a,cx,cy){ // foot window: 2 cols x 3 rows
-  let s=0,e=0,d=0,sl=0; for(let y=cy;y<cy+3;y++) for(let x=cx;x<cx+2;x++){ const k=y*cols+x; s+=a.stab[k]; e+=a.edge[k]; d+=a.dark[k]; sl+=a.slope[k]; }
-  return {s:s/6,e:e/6,d:d/6,sl:sl/6};
-}
+function win(a,cx,cy){ let s=0,e=0,d=0,r=0,gmin=1,o=0,w=0; const votes={};
+  for(let y=cy;y<cy+3;y++) for(let x=cx;x<cx+2;x++){ const k=y*cols+x; s+=a.stab[k]; e+=a.edge[k]; d+=a.dark[k]; r+=a.relief?a.relief.rel[k]:0; gmin=Math.min(gmin,a.gfr[k]); o+=a.ofr[k]; w+=a.wfr[k]; if(a.obsId[k]) votes[a.obsId[k]]=(votes[a.obsId[k]]||0)+1; }
+  let bid=0,bv=0; for(const id in votes) if(votes[id]>bv){bv=votes[id];bid=+id;}
+  return {cx,cy,s:s/6,e:e/6,d:d/6,r:r/6,gmin,o:o/6,w:w/6,obs:bid}; }
 
 function pick(a,now){
-  const sx=CW/AW, sy=CH/AH, fw=2*CELL*sx, fh=3*CELL*sy;
-  const r0=Math.floor(rows*0.2), r1=Math.floor(rows*0.66)-3, side=nextSide;
-  const all=[];
-  for(let cy=r0;cy<=r1;cy++) for(let cx=0;cx<=cols-2;cx++){ const w=windowScore(a,cx,cy); all.push({cx,cy,...w,mx:(cx+1)/cols}); }
-  const mine=all.filter(w=> side==='L'? w.mx<0.58 : w.mx>0.42).sort((p,q)=>q.s-p.s);
-  const chosen=[]; for(const w of mine){ if(chosen.every(c=>Math.abs(c.cx-w.cx)>=2||Math.abs(c.cy-w.cy)>=3)) chosen.push(w); if(chosen.length===3) break; }
+  const sx=CW/AW,sy=CH/AH,fw=2*CELL*sx,fh=3*CELL*sy, r0=Math.floor(rows*0.2), r1=Math.floor(rows*0.7)-3, side=nextSide, all=[];
+  for(let cy=r0;cy<=r1;cy++) for(let cx=0;cx<=cols-2;cx++){ const w=win(a,cx,cy); w.mx=(cx+1)/cols; w.my=(cy+1.5)/rows;
+    // prefer a natural next-step spot: ~55% down the frame, on this foot's side
+    w.rank=w.s-0.35*Math.abs(w.my-0.55)-0.25*Math.abs(w.mx-(nextSide==='L'?0.36:0.64)); all.push(w); }
+  const sep=(p,q)=>Math.abs(p.cx-q.cx)>=3||Math.abs(p.cy-q.cy)>=4;
+  const mine=all.filter(w=>w.gmin>=0.6 && (side==='L'?w.mx<0.58:w.mx>0.42)).sort((p,q)=>q.rank-p.rank);
+  const chosen=[]; for(const w of mine){ if(chosen.every(c=>sep(c,w))) chosen.push(w); if(chosen.length===2) break; }
   markers.forEach(m=>{ if(m.type!=='step') m.dying=now; });
   const other=markers.find(m=>m.type==='step'&&m.side!==side&&!m.dying);
-  chosen.forEach((w,i)=>{
-    const x=(w.cx+1)*CELL*sx, y=(w.cy+1.5)*CELL*sy; let type= i===0&&w.s>0.45? 'step':'cand';
-    if(type==='step'&&other&&Math.hypot(other.x-x,other.y-y)<fw*0.9) type='cand';
-    if(type==='step') markers.forEach(m=>{ if(m.type==='step'&&m.side===side) m.dying=now; });
-    markers.push({x,y,w:fw,h:fh,type,side,idx:i+1,score:w.s,e:w.e,d:w.d,sl:w.sl,born:now,ang:(side==='L'?-0.14:0.14)+(Math.random()-0.5)*0.12});
-  });
-  const worst=all.filter(w=>w.s<0.32).sort((p,q)=>p.s-q.s)[0];
-  if(worst && chosen.every(c=>Math.abs(c.cx-worst.cx)>=2||Math.abs(c.cy-worst.cy)>=3))
-    markers.push({x:(worst.cx+1)*CELL*sx,y:(worst.cy+1.5)*CELL*sy,w:fw,h:fh,type:'hazard',side:worst.mx<0.5?'L':'R',idx:chosen.length+1,score:worst.s,e:worst.e,d:worst.d,sl:worst.sl,born:now,ang:0});
+  const mk=(w,type,idx)=>({x:(w.cx+1)*CELL*sx,y:(w.cy+1.5)*CELL*sy,w:fw,h:fh,type,side:w.mx<0.5?'L':'R',idx,score:w.s,e:w.e,d:w.d,r:w.r,obs:w.obs,born:now,ang:0});
+  chosen.forEach((w,i)=>{ let type= i===0&&w.s>0.5?'step':'cand'; const m=mk(w,type,i+1); m.side=side; m.ang=(side==='L'?-0.14:0.14)+(Math.random()-0.5)*0.1;
+    if(type==='step'&&other&&Math.hypot(other.x-m.x,other.y-m.y)<fw*0.9) m.type='cand';
+    if(m.type==='step') markers.forEach(o=>{ if(o.type==='step'&&o.side===side) o.dying=now; });
+    markers.push(m); });
+  let n=chosen.length+1;
+  const obst=all.filter(w=>w.o>0.55&&w.obs).sort((p,q)=>q.o-p.o)[0];
+  if(obst&&chosen.every(c=>sep(c,obst))) markers.push(mk(obst,'obstacle',n++));
+  const water=all.filter(w=>w.w>0.5).sort((p,q)=>q.w-p.w)[0];
+  if(water&&chosen.every(c=>sep(c,water))) markers.push(mk(water,'water',n++));
+  const bad=all.filter(w=>w.gmin>=0.6&&w.s<0.3).sort((p,q)=>p.s-q.s)[0];
+  if(bad&&chosen.every(c=>sep(c,bad))&&(!obst||sep(obst,bad))) markers.push(mk(bad,'hazard',n++));
   nextSide= side==='L'?'R':'L';
 }
 
-/* ---------- drawing ---------- */
-function solePath(g,w,h){
-  g.beginPath(); g.moveTo(0,-h/2);
-  g.bezierCurveTo(w*0.55,-h/2,w*0.6,-h*0.08,w*0.42,h*0.1);
-  g.bezierCurveTo(w*0.32,h*0.24,w*0.36,h/2,0,h/2);
-  g.bezierCurveTo(-w*0.36,h/2,-w*0.32,h*0.24,-w*0.42,h*0.1);
-  g.bezierCurveTo(-w*0.6,-h*0.08,-w*0.55,-h/2,0,-h/2); g.closePath();
-}
-function drawFoot(m,alpha){
-  const col= m.type==='step'? C.safe : m.type==='hazard'? C.risk : C.scan;
-  ctx.save(); ctx.globalAlpha=alpha; ctx.translate(m.x,m.y); ctx.rotate(m.ang);
-  const w=m.w*0.78, h=m.h*0.95;
-  ctx.shadowColor=col; ctx.shadowBlur=CW*0.02;
-  solePath(ctx,w,h); ctx.fillStyle=col+(m.type==='step'?'55':'28'); ctx.fill();
-  ctx.lineWidth=Math.max(1.5,CW*0.004); ctx.strokeStyle=col; ctx.stroke(); ctx.shadowBlur=0;
-  ctx.setLineDash([w*0.08,w*0.06]); ctx.lineWidth=Math.max(1,CW*0.0025);
-  for(let i=-2;i<=2;i++){ if(i===0) continue; ctx.beginPath(); ctx.moveTo(-w*0.28,i*h*0.15); ctx.lineTo(w*0.28,i*h*0.15); ctx.stroke(); }
-  ctx.setLineDash([]);
-  if(m.type!=='hazard'){
-    const bs=w*0.42; ctx.fillStyle='rgba(8,14,18,0.75)'; ctx.fillRect(-bs/2,-bs*0.6,bs,bs*1.2);
-    ctx.strokeStyle=col; ctx.strokeRect(-bs/2,-bs*0.6,bs,bs*1.2);
-    ctx.fillStyle=col; ctx.font=`700 ${bs*0.9}px ${HUD}`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(m.side,0,bs*0.05);
-  }
+/* ================= drawing ================= */
+function solePath(g,w,h){ g.beginPath(); g.moveTo(0,-h/2); g.bezierCurveTo(w*0.55,-h/2,w*0.6,-h*0.08,w*0.42,h*0.1); g.bezierCurveTo(w*0.32,h*0.24,w*0.36,h/2,0,h/2);
+  g.bezierCurveTo(-w*0.36,h/2,-w*0.32,h*0.24,-w*0.42,h*0.1); g.bezierCurveTo(-w*0.6,-h*0.08,-w*0.55,-h/2,0,-h/2); g.closePath(); }
+const colOf=m=> m.type==='step'?C.safe : m.type==='cand'?C.scan : m.type==='obstacle'?C.warn : C.risk;
+function drawMarker(m,alpha){
+  const col=colOf(m); ctx.save(); ctx.globalAlpha=alpha; ctx.translate(m.x,m.y); ctx.rotate(m.ang); ctx.lineWidth=Math.max(1.5,CW*0.004); ctx.strokeStyle=col;
+  if(m.type==='obstacle'||m.type==='water'){
+    const w=m.w*0.9,h=m.h*0.8; ctx.setLineDash([w*0.12,w*0.08]); ctx.strokeRect(-w/2,-h/2,w,h); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(-w*0.25,-h*0.25); ctx.lineTo(w*0.25,h*0.25); ctx.moveTo(w*0.25,-h*0.25); ctx.lineTo(-w*0.25,h*0.25); ctx.stroke(); ctx.restore(); return; }
+  const w=m.w*0.78,h=m.h*0.95; ctx.shadowColor=col; ctx.shadowBlur=CW*0.02; solePath(ctx,w,h); ctx.fillStyle=col+(m.type==='step'?'55':'28'); ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+  ctx.setLineDash([w*0.08,w*0.06]); ctx.lineWidth=Math.max(1,CW*0.0025); for(const i of [-2,-1,1,2]){ ctx.beginPath(); ctx.moveTo(-w*0.28,i*h*0.15); ctx.lineTo(w*0.28,i*h*0.15); ctx.stroke(); } ctx.setLineDash([]);
+  if(m.type!=='hazard'){ const bs=w*0.42; ctx.fillStyle='rgba(8,14,18,0.75)'; ctx.fillRect(-bs/2,-bs*0.6,bs,bs*1.2); ctx.strokeRect(-bs/2,-bs*0.6,bs,bs*1.2);
+    ctx.fillStyle=col; ctx.font=`700 ${bs*0.9}px ${HUD}`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(m.side,0,bs*0.05); }
   ctx.restore();
+}
+function labelText(m){
+  const pct=v=>Math.round(v*100);
+  if(m.type==='obstacle') return [ (segMap&&segMap.names[m.obs]||'object').toUpperCase(), 'OBSTACLE' ];
+  if(m.type==='water') return ['WATER','DO NOT STEP'];
+  if(m.type==='hazard'){
+    if(m.r!=null&&Math.abs(m.r)>0.1) return [m.r>0?'BUMP':'DIP', 'RELIEF '+(m.r>0?'+':'')+pct(m.r)+'%'];
+    return m.d>0.3? ['DARK GAP','SHADOW '+pct(m.d)+'%'] : ['ROUGH','TEXTURE '+pct(m.e)+'%']; }
+  const t= analysis&&analysis.relief? (Math.abs(m.r)<0.05?'FLAT':'UNEVEN') : (m.e<0.45?'SOLID':'SURFACE');
+  return [t,'CHECK '+pct(m.score)+'%'];
 }
 function drawLabel(m,alpha){
-  if(m.type==='step'&&m.labelHidden) return;
-  const col= m.type==='step'? C.safe : m.type==='hazard'? C.risk : C.scan;
-  const fs=Math.max(10*DPR,CW*0.026), pad=fs*0.45, bw=fs*6.6, bh=fs*2.5;
-  let lx=m.x+(m.side==='L'? -bw*0.15 : -bw*0.85), ly=m.y-m.h*0.95-bh;
-  lx=Math.max(fs*0.5,Math.min(CW-bw-fs*0.5,lx)); ly=Math.max(CH*0.11,ly);
-  let title, line;
-  if(m.type==='hazard'){
-    if(depthOn&&depthMap&&m.sl>0.55){ title='DROP'; line='RELIEF '+Math.round(m.sl*100)+'%'; }
-    else { const gap=m.d>0.28; title=gap?'GAP':'LOOSE'; line=(gap?'SHADOW ':'ROUGH ')+Math.round((gap?m.d:m.e)*100)+'%'; } }
-  else if(depthOn&&depthMap){ title='SLOPE '+Math.round(m.sl*100); line='CHECK '+Math.round(m.score*100)+'%'; }
-  else { title= m.e<0.45? 'SOLID':'SURFACE'; line='CHECK '+Math.round(m.score*100)+'%'; }
-  ctx.save(); ctx.globalAlpha=alpha;
-  ctx.strokeStyle=col; ctx.lineWidth=Math.max(1,CW*0.002);
-  ctx.beginPath(); ctx.moveTo(lx+bw/2,ly+bh); ctx.lineTo(m.x,m.y-m.h*0.35); ctx.stroke();
-  ctx.fillStyle= m.type==='hazard'? 'rgba(70,8,16,0.85)' : C.panel; ctx.fillRect(lx,ly,bw,bh);
-  ctx.lineWidth=Math.max(1.5,CW*0.003); ctx.strokeRect(lx,ly,bw,bh);
-  ctx.textBaseline='top'; ctx.textAlign='left';
-  ctx.font=`600 ${fs*0.82}px ${HUD}`; ctx.fillStyle=col; ctx.fillText(`${m.side}${m.idx} · ${title}`,lx+pad,ly+pad*0.8);
-  ctx.font=`500 ${fs*0.78}px ${HUD}`; ctx.fillStyle=C.ink; ctx.fillText(line,lx+pad,ly+pad*0.8+fs*1.05);
-  ctx.restore();
+  if(m.type==='step'&&m.labelHidden) return; const col=colOf(m), fs=Math.max(10*DPR,CW*0.026), pad=fs*0.45, bw=fs*7.2, bh=fs*2.5;
+  let lx=m.x+(m.side==='L'?-bw*0.15:-bw*0.85), ly=m.y-m.h*0.95-bh; lx=Math.max(fs*0.5,Math.min(CW-bw-fs*0.5,lx)); ly=Math.max(CH*0.16,ly);
+  const [title,line]=labelText(m);
+  ctx.save(); ctx.globalAlpha=alpha; ctx.strokeStyle=col; ctx.lineWidth=Math.max(1,CW*0.002); ctx.beginPath(); ctx.moveTo(lx+bw/2,ly+bh); ctx.lineTo(m.x,m.y-m.h*0.35); ctx.stroke();
+  ctx.fillStyle= m.type==='step'||m.type==='cand'? C.panel : 'rgba(60,10,16,0.85)'; ctx.fillRect(lx,ly,bw,bh); ctx.lineWidth=Math.max(1.5,CW*0.003); ctx.strokeRect(lx,ly,bw,bh);
+  ctx.textBaseline='top'; ctx.textAlign='left'; ctx.font=`600 ${fs*0.82}px ${HUD}`; ctx.fillStyle=col; ctx.fillText(`${m.side}${m.idx} · ${title}`,lx+pad,ly+pad*0.8);
+  ctx.font=`500 ${fs*0.78}px ${HUD}`; ctx.fillStyle=C.ink; ctx.fillText(line,lx+pad,ly+pad*0.8+fs*1.05); ctx.restore();
 }
-function drawHeat(a){
-  if(!a) return; const sx=CW/AW, sy=CH/AH;
-  for(let cy=Math.floor(rows*0.15);cy<Math.floor(rows*0.8);cy++) for(let cx=0;cx<cols;cx++){
-    const v=a.stab[cy*cols+cx]; ctx.fillStyle=`hsla(${Math.round(v*130)},90%,50%,0.26)`;
-    ctx.fillRect(cx*CELL*sx,cy*CELL*sy,CELL*sx-1,CELL*sy-1);
-  }
+const KIND_RGB={0:[0,0,0,0],1:[75,227,138,90],2:[255,181,71,120],3:[79,140,247,120],4:[120,130,140,70]};
+function drawSegView(){
+  if(!segMap){ return; }
+  if(!segMap.img){ const id=new ImageData(AW,AH); for(let i=0;i<AW*AH;i++){ const c=KIND_RGB[segMap.kinds[segMap.lab[i]]]||KIND_RGB[0]; id.data.set(c,i*4); }
+    const cv=document.createElement('canvas'); cv.width=AW; cv.height=AH; cv.getContext('2d').putImageData(id,0,0); segMap.img=cv; }
+  const sx=CW/AW,sy=CH/AH; ctx.imageSmoothingEnabled=false; ctx.drawImage(segMap.img,(cumX-segMap.offX)*sx,(cumY-segMap.offY)*sy,CW,CH); ctx.imageSmoothingEnabled=true;
+  // name the biggest regions
+  const acc={}; for(let y=0;y<AH;y+=4) for(let x=0;x<AW;x+=4){ const id=segMap.lab[y*AW+x]; if(!id) continue; const a=acc[id]||(acc[id]={n:0,x:0,y:0}); a.n++; a.x+=x; a.y+=y; }
+  const fs=Math.max(10*DPR,CW*0.03); ctx.font=`600 ${fs}px ${HUD}`; ctx.textAlign='center'; ctx.textBaseline='middle';
+  Object.entries(acc).sort((p,q)=>q[1].n-p[1].n).slice(0,5).forEach(([id,a])=>{ const x=(a.x/a.n+(cumX-segMap.offX))*sx, y=(a.y/a.n+(cumY-segMap.offY))*sy, t=segMap.names[id].toUpperCase();
+    const w=ctx.measureText(t).width+fs; ctx.fillStyle='rgba(8,14,18,0.8)'; ctx.fillRect(x-w/2,y-fs*0.75,w,fs*1.5); ctx.fillStyle=C.ink; ctx.fillText(t,x,y); });
 }
+function drawDepthView(){
+  if(!depthMap) return;
+  if(!depthMap.img){ const {w,h,ch,data}=depthMap, id=new ImageData(w,h); for(let i=0;i<w*h;i++){ const v=data[i*ch]; id.data[i*4]=v*0.3; id.data[i*4+1]=v*0.75; id.data[i*4+2]=v; id.data[i*4+3]=215; }
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').putImageData(id,0,0); depthMap.img=cv; }
+  const sx=CW/AW,sy=CH/AH; ctx.drawImage(depthMap.img,(cumX-depthMap.offX)*sx,(cumY-depthMap.offY)*sy,CW,CH);
+  if(analysis&&analysis.relief){ for(let cy=0;cy<rows;cy++) for(let cx=0;cx<cols;cx++){ const r=analysis.relief.rel[cy*cols+cx]; if(Math.abs(r)<0.06) continue;
+    ctx.fillStyle= r>0? `rgba(255,181,71,${Math.min(0.6,Math.abs(r)*3)})` : `rgba(255,77,94,${Math.min(0.6,Math.abs(r)*3)})`; ctx.fillRect(cx*CELL*sx,cy*CELL*sy,CELL*sx-1,CELL*sy-1); } }
+}
+function drawScoreView(){ if(!analysis) return; const sx=CW/AW,sy=CH/AH;
+  for(let cy=Math.floor(rows*0.15);cy<Math.floor(rows*0.8);cy++) for(let cx=0;cx<cols;cx++){ const k=cy*cols+cx; if(analysis.gfr[k]<0.6) continue;
+    ctx.fillStyle=`hsla(${Math.round(analysis.stab[k]*130)},90%,50%,0.28)`; ctx.fillRect(cx*CELL*sx,cy*CELL*sy,CELL*sx-1,CELL*sy-1); } }
+
+function chip(x,y,text,col,fs){ ctx.font=`600 ${fs}px ${HUD}`; const w=ctx.measureText(text).width+fs*1.1, h=fs*1.7;
+  ctx.fillStyle='rgba(8,14,18,0.82)'; ctx.fillRect(x,y,w,h); ctx.strokeStyle=col; ctx.lineWidth=Math.max(1,CW*0.002); ctx.strokeRect(x,y,w,h);
+  ctx.fillStyle=col; ctx.textBaseline='middle'; ctx.textAlign='left'; ctx.fillText(text,x+fs*0.55,y+h/2); return w; }
+
+function stepStatus(){
+  const s=[]; const fs=0;
+  // ① tilt
+  if(source.kind==='camera'){ if(!tilt.has) s.push(['① TILT N/A',C.warn]); else { const d=Math.round(tiltDown()); s.push([`① TILT ${d}°`, gate.reason==='up'||gate.reason==='roll'?C.risk:C.safe]); } }
+  else s.push(['① TILT —','rgba(223,232,236,0.6)']);
+  // ② ground
+  if(source.kind==='demo') s.push(['② GROUND DEMO','rgba(223,232,236,0.6)']);
+  else if(seg.state==='loading') s.push(['② LOADING',C.scan]);
+  else if(seg.state==='error') s.push(['② ERROR',C.risk]);
+  else if(analysis&&analysis.useSeg) s.push([`② GROUND ${Math.round(analysis.groundZone*100)}%`, analysis.groundZone<0.15?C.risk:C.safe]);
+  else s.push(['② WAIT',C.scan]);
+  // ③ depth
+  if(!dep.on) s.push(['③ DEPTH OFF','rgba(223,232,236,0.6)']);
+  else if(dep.state==='loading') s.push(['③ LOADING',C.scan]);
+  else if(analysis&&analysis.relief) s.push(['③ DEPTH ON',C.safe]);
+  else s.push(['③ DEPTH WAIT',C.scan]);
+  return s;
+}
+
+function drawGatePanel(now){
+  const r=gate.reason; let en='',zh='',sub='';
+  if(r==='up'){ en='AIM AT GROUND'; zh='請把鏡頭往下，對準前方地面'; sub=`目前 ${Math.round(tiltDown())}°（需要 20°–90° 朝下）`; }
+  else if(r==='roll'){ en='HOLD LEVEL'; zh='手機左右傾斜太多，請扶正'; sub=`左右傾斜 ${Math.round(Math.abs(tilt.gamma))}°（需小於 30°）`; }
+  else if(r==='seg-loading'){ en='LOADING GROUND MODEL'; zh='正在下載地面辨識模型（約 4MB）'; sub='第一次比較久，之後會快取'; }
+  else if(r==='seg-wait'){ en='RECOGNISING'; zh='正在辨識畫面中的地面'; }
+  else if(r==='seg-error'){ en='MODEL ERROR'; zh='地面辨識模型載入失敗'; sub='請確認網路後重新整理頁面'; }
+  else if(r==='noground'){ en='NO GROUND'; zh='畫面中沒有辨識到可以踩的地面'; sub= analysis&&analysis.seenObstacles.length? '看到：'+analysis.seenObstacles.map(s=>s.toUpperCase()).join(' / ') : ''; }
+  else return;
+  const fs=Math.max(12*DPR,CW*0.045), w=CW*0.84, h=fs*(sub?4.6:3.6), x=(CW-w)/2, y=CH*0.4;
+  ctx.fillStyle='rgba(8,14,18,0.86)'; ctx.fillRect(x,y,w,h); ctx.strokeStyle= r.startsWith('seg')&&r!=='seg-error'? C.scan : C.risk; ctx.lineWidth=Math.max(1.5,CW*0.003); ctx.strokeRect(x,y,w,h);
+  ctx.textAlign='center'; ctx.textBaseline='top'; ctx.fillStyle=ctx.strokeStyle; ctx.font=`700 ${fs}px ${HUD}`; ctx.fillText(en,CW/2,y+fs*0.45);
+  ctx.fillStyle=C.ink; ctx.font=`500 ${fs*0.62}px ${ZH}`; ctx.fillText(zh,CW/2,y+fs*1.65);
+  if(sub){ ctx.fillStyle='rgba(223,232,236,0.7)'; ctx.font=`400 ${fs*0.52}px ${ZH}`; ctx.fillText(sub,CW/2,y+fs*2.6); }
+  if((r==='up'||r==='roll')&&tilt.has){ // inclinometer
+    const cx=CW/2-CW*0.12, cy=y+h+fs*0.8, R=CW*0.24; ctx.lineWidth=fs*0.22;
+    ctx.strokeStyle='rgba(223,232,236,0.25)'; ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI/2); ctx.stroke();
+    ctx.strokeStyle=C.safe; ctx.beginPath(); ctx.arc(cx,cy,R,20*Math.PI/180,Math.PI/2); ctx.stroke();
+    const a=Math.max(-30,Math.min(110,tiltDown()))*Math.PI/180; ctx.strokeStyle=C.ink; ctx.lineWidth=fs*0.12; ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(a)*R*1.08,cy+Math.sin(a)*R*1.08); ctx.stroke();
+    ctx.fillStyle='rgba(223,232,236,0.6)'; ctx.font=`500 ${fs*0.45}px ${HUD}`; ctx.textAlign='left'; ctx.fillText('0° HORIZON',cx+R+fs*0.3,cy-fs*0.25); }
+}
+
 function drawHud(now){
   const fs=Math.max(11*DPR,CW*0.034), m=CW*0.045, bw=CW-2*m, bh=fs*2.3, y=CH*0.03;
   ctx.fillStyle=C.panel; ctx.fillRect(m,y,bw,bh); ctx.strokeStyle='rgba(79,195,247,0.45)'; ctx.lineWidth=Math.max(1,CW*0.002); ctx.strokeRect(m,y,bw,bh);
-  ctx.fillStyle=C.ink; ctx.font=`700 ${fs}px ${HUD}`; ctx.textBaseline='top'; ctx.textAlign='left';
-  ctx.fillText('ANALYSING TERRAIN', m+fs*0.5, y+fs*0.3);
-  ctx.font=`500 ${fs*0.5}px ${HUD}`; ctx.fillStyle='rgba(79,195,247,0.85)';
-  const z=Math.floor(rows*0.46)*cols; ctx.fillText(`CONTACT SEARCH · ${z} CELLS · NEXT ${nextSide}`, m+fs*0.5, y+fs*1.45);
-  const blink=(now/400|0)%2; if(blink){ ctx.fillStyle=C.scan; ctx.fillRect(m+bw-fs*1.2,y+bh*0.62,fs*0.6,fs*0.18); }
-  // scan sweep
-  const zy0=CH*0.15, zy1=CH*0.8, p=(now%2200)/2200, sy=zy0+(zy1-zy0)*p;
-  const gr=ctx.createLinearGradient(0,sy-CH*0.05,0,sy); gr.addColorStop(0,'rgba(79,195,247,0)'); gr.addColorStop(1,'rgba(79,195,247,0.16)');
-  ctx.fillStyle=gr; ctx.fillRect(0,sy-CH*0.05,CW,CH*0.05); ctx.fillStyle='rgba(79,195,247,0.5)'; ctx.fillRect(0,sy,CW,Math.max(1,DPR));
-  // ring
-  const rx=CW-m-fs*0.9, ry=y+bh+fs*1.6, rr=fs*0.85;
-  ctx.strokeStyle='rgba(223,232,236,0.75)'; ctx.lineWidth=fs*0.16; ctx.beginPath(); ctx.arc(rx,ry,rr,now/600,now/600+4.6); ctx.stroke();
-  ctx.fillStyle='rgba(223,232,236,0.85)'; ctx.beginPath(); ctx.arc(rx,ry,rr*0.45,0,7); ctx.fill();
-  // footer readout
-  ctx.font=`500 ${fs*0.48}px ${HUD}`; ctx.fillStyle='rgba(223,232,236,0.8)'; ctx.textBaseline='bottom';
+  ctx.fillStyle=C.ink; ctx.font=`700 ${fs}px ${HUD}`; ctx.textBaseline='top'; ctx.textAlign='left'; ctx.fillText('ANALYSING TERRAIN',m+fs*0.5,y+fs*0.3);
+  ctx.font=`500 ${fs*0.5}px ${HUD}`; ctx.fillStyle='rgba(79,195,247,0.85)'; ctx.fillText(gate.ok? `CONTACT SEARCH · NEXT ${nextSide}` : 'STANDBY · CHECKS PENDING', m+fs*0.5, y+fs*1.45);
+  if((now/400|0)%2){ ctx.fillStyle=C.scan; ctx.fillRect(m+bw-fs*1.2,y+bh*0.62,fs*0.6,fs*0.18); }
+  let cx=m; const cfs=fs*0.48; for(const [t,c] of stepStatus()){ cx+=chip(cx,y+bh+fs*0.35,t,c,cfs)+cfs*0.5; }
+  if(gate.ok){ const zy0=CH*0.15,zy1=CH*0.8,p=(now%2200)/2200,sy=zy0+(zy1-zy0)*p, gr=ctx.createLinearGradient(0,sy-CH*0.05,0,sy);
+    gr.addColorStop(0,'rgba(79,195,247,0)'); gr.addColorStop(1,'rgba(79,195,247,0.16)'); ctx.fillStyle=gr; ctx.fillRect(0,sy-CH*0.05,CW,CH*0.05); ctx.fillStyle='rgba(79,195,247,0.5)'; ctx.fillRect(0,sy,CW,Math.max(1,DPR)); }
+  ctx.font=`500 ${fs*0.46}px ${HUD}`; ctx.fillStyle='rgba(223,232,236,0.8)'; ctx.textBaseline='bottom'; ctx.textAlign='left';
   const src={demo:'DEMO',video:'VIDEO',image:'IMAGE',camera:'LIVE'}[source.kind];
-  const dtag= depthOn? (depthMap? `DEPTH ${Math.round(depthMs)}ms  ·  ` : 'DEPTH LOADING  ·  ') : '';
-  ctx.fillText(`SRC ${src}  ·  ${dtag}${Math.round(fps)} FPS  ·  SHIFT ${shift.dx>=0?'+':''}${shift.dx.toFixed(1)}, ${shift.dy>=0?'+':''}${shift.dy.toFixed(1)}`, m, CH-CH*0.02);
+  const t=[`SRC ${src}`,`${Math.round(fps)} FPS`]; if(seg.ms) t.push(`SEG ${Math.round(seg.ms)}ms`); if(dep.on&&dep.ms) t.push(`DEPTH ${Math.round(dep.ms)}ms`); t.push(`VIEW ${view.toUpperCase()}`);
+  ctx.fillText(t.join('  ·  '),m,CH-CH*0.02);
 }
 
-/* ---------- loop ---------- */
-function frame(ts){
-  requestAnimationFrame(frame);
-  if(!CW) return;
-  const dt=lastTs? Math.min(0.1,(ts-lastTs)/1000):0.016; lastTs=ts; if(dt>0) fps=fps*0.92+(1/dt)*0.08;
-  if(paused && prevGray){ return; }
-  let ok=true;
-  if(source.kind==='demo') drawDemo(dt);
-  else if(source.kind==='image') ok=drawCover(imageEl,imageEl.naturalWidth,imageEl.naturalHeight);
-  else ok=drawCover(video,video.videoWidth,video.videoHeight);
-  if(!ok) return;
-  if(depthOn&&depthPipe&&!depthBusy&&ts-lastDepth>150) runDepth(ts);
-  const g=toGray();
-  if(prevGray&&prevGray.length===g.length){
-    const t=track(prevGray,g); shift=t; const sx=CW/AW, sy=CH/AH;
-    markers.forEach(m=>{ m.x+=t.dx*sx; m.y+=t.dy*sy; });
+/* ================= gate + loop ================= */
+function computeGate(now){
+  if(source.kind==='camera'){
+    if(tilt.has){ const d=tiltDown(); if(d<20||d>100) return {ok:false,reason:'up'}; if(Math.abs(tilt.gamma)>30) return {ok:false,reason:'roll'}; }
   }
+  if(source.kind!=='demo'){
+    if(seg.state==='error') return {ok:false,reason:'seg-error'};
+    if(seg.state!=='ready') return {ok:false,reason:'seg-loading'};
+    if(!segMap) return {ok:false,reason:'seg-wait'};
+  }
+  return {ok:true,reason:''};
+}
+function frame(ts){
+  requestAnimationFrame(frame); if(!CW) return;
+  const dt=lastTs?Math.min(0.1,(ts-lastTs)/1000):0.016; lastTs=ts; if(dt>0) fps=fps*0.92+(1/dt)*0.08;
+  if(paused&&prevGray) return;
+  let ok=true; if(source.kind==='demo') drawDemo(dt); else if(source.kind==='image') ok=drawCover(imageEl,imageEl.naturalWidth,imageEl.naturalHeight); else ok=drawCover(video,video.videoWidth,video.videoHeight);
+  if(!ok) return;
+  gate=computeGate(ts);
+  const tiltOk= gate.reason!=='up'&&gate.reason!=='roll';
+  if(source.kind!=='demo'&&seg.state==='ready'&&!seg.busy&&tiltOk&&ts-seg.last>350) runSeg(ts);
+  if(dep.on&&dep.state==='ready'&&!dep.busy&&tiltOk&&(source.kind==='demo'||segMap)&&ts-dep.last>250) runDepth(ts);
+  const g=toGray();
+  if(prevGray&&prevGray.length===g.length){ const t=track(prevGray,g); shift=t; cumX+=t.dx; cumY+=t.dy; const sx=CW/AW,sy=CH/AH; markers.forEach(m=>{m.x+=t.dx*sx; m.y+=t.dy*sy;}); }
   prevGray=g;
-  if(ts-lastPick>720){ lastAnalysis=analyse(g); pick(lastAnalysis,ts); lastPick=ts; }
-  else if(heat && ts-lastPick>360 && !lastAnalysis) lastAnalysis=analyse(g);
-  markers=markers.filter(m=>{
-    if(m.y>CH*0.9||m.y<-m.h||m.x<-m.w||m.x>CW+m.w) return false;
-    if(m.dying&&ts-m.dying>260) return false;
-    if(m.type==='step'&&ts-m.born>3200) return false; return true;
-  });
-  if(heat) drawHeat(lastAnalysis);
-  const order={hazard:0,cand:1,step:2};
-  markers.sort((p,q)=>order[p.type]-order[q.type]).forEach(m=>{
-    let a=Math.min(1,(ts-m.born)/200); if(m.dying) a*=Math.max(0,1-(ts-m.dying)/260);
-    if(m.type==='step'&&ts-m.born>1400) m.labelHidden=true;
-    drawFoot(m,a); drawLabel(m,a);
-  });
-  drawHud(ts);
+  if(ts-lastPick>650){ lastPick=ts;
+    if(gate.ok){ analysis=analyse(g); if(analysis.useSeg&&analysis.groundZone<0.15){ gate={ok:false,reason:'noground'}; markers.forEach(m=>m.dying=m.dying||ts); } else pick(analysis,ts); }
+    else markers.forEach(m=>m.dying=m.dying||ts);
+  }
+  if(gate.ok&&analysis&&analysis.useSeg&&analysis.groundZone<0.15) gate={ok:false,reason:'noground'};
+  markers=markers.filter(m=>!(m.y>CH*0.9||m.y<-m.h||m.x<-m.w||m.x>CW+m.w||(m.dying&&ts-m.dying>260)||(m.type==='step'&&ts-m.born>3200)));
+  if(view==='seg') drawSegView(); else if(view==='depth') drawDepthView(); else if(view==='score') drawScoreView();
+  const order={hazard:0,water:0,obstacle:1,cand:2,step:3};
+  markers.sort((p,q)=>order[p.type]-order[q.type]).forEach(m=>{ let a=Math.min(1,(ts-m.born)/200); if(m.dying) a*=Math.max(0,1-(ts-m.dying)/260);
+    if(m.type==='step'&&ts-m.born>1400) m.labelHidden=true; drawMarker(m,a); drawLabel(m,a); });
+  drawHud(ts); if(!gate.ok) drawGatePanel(ts);
 }
 
-/* ---------- controls ---------- */
-const btnDemo=document.getElementById('btnDemo'), btnCam=document.getElementById('btnCam'), btnHeat=document.getElementById('btnHeat'), btnPause=document.getElementById('btnPause'), file=document.getElementById('file');
+/* ================= controls ================= */
+const btnDemo=document.getElementById('btnDemo'),btnCam=document.getElementById('btnCam'),btnDepth=document.getElementById('btnDepth'),btnView=document.getElementById('btnView'),btnPause=document.getElementById('btnPause'),file=document.getElementById('file'),viewName=document.getElementById('viewName');
 function setSource(kind){
-  source={kind}; prevGray=null; markers=[]; lastAnalysis=null; showMsg('');
+  source={kind}; prevGray=null; markers=[]; analysis=null; segMap=null; depthMap=null; showMsg('');
   btnDemo.setAttribute('aria-pressed',String(kind==='demo')); btnCam.setAttribute('aria-pressed',String(kind==='camera'));
   if(kind!=='camera'&&camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
-  if(kind!=='video'&&kind!=='camera'){ try{ video.pause(); }catch(e){} }
+  if(kind!=='video'&&kind!=='camera'){ try{video.pause();}catch(e){} }
+  if(kind!=='demo') loadSeg();
   setPaused(false);
 }
-function setPaused(p){ paused=p; btnPause.setAttribute('aria-pressed',String(p));
-  if(source.kind==='video'||source.kind==='camera'){ try{ p? video.pause(): video.play().catch(()=>{}); }catch(e){} } }
+function setPaused(p){ paused=p; btnPause.setAttribute('aria-pressed',String(p)); if(source.kind==='video'||source.kind==='camera'){ try{ p?video.pause():video.play().catch(()=>{}); }catch(e){} } }
 btnDemo.onclick=()=>setSource('demo');
-btnHeat.onclick=()=>{ heat=!heat; btnHeat.setAttribute('aria-pressed',String(heat)); };
 btnPause.onclick=()=>setPaused(!paused);
-file.onchange=()=>{
-  const f=file.files&&file.files[0]; if(!f) return; const url=URL.createObjectURL(f);
+btnView.onclick=()=>{ view=VIEWS[(VIEWS.indexOf(view)+1)%VIEWS.length]; viewName.textContent=VIEW_ZH[view]; btnView.setAttribute('aria-pressed',String(view!=='normal')); };
+btnDepth.onclick=()=>{ dep.on=!dep.on; btnDepth.setAttribute('aria-pressed',String(dep.on)); if(!dep.on){ depthMap=null; return; } loadDepth(); };
+file.onchange=()=>{ const f=file.files&&file.files[0]; if(!f) return; const url=URL.createObjectURL(f);
   if(f.type.startsWith('image/')){ imageEl=new Image(); imageEl.onload=()=>setSource('image'); imageEl.src=url; }
-  else { video.srcObject=null; video.src=url; setSource('video'); video.play().catch(()=>showMsg('影片無法自動播放，請再點一次「暫停」按鈕開始播放。')); }
-  file.value='';
-};
+  else { video.srcObject=null; video.src=url; setSource('video'); video.play().catch(()=>showMsg('影片無法自動播放，請按兩次「暫停」開始播放。')); }
+  file.value=''; };
 btnCam.onclick=async()=>{
+  const tiltP=enableTilt(); // must start inside the tap (iOS)
   try{
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) throw new Error('no');
-    const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});
-    camStream=s; video.src=''; video.srcObject=s; setSource('camera'); camStream=s; await video.play();
+    const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
+    video.src=''; video.srcObject=s; setSource('camera'); camStream=s; camStart=performance.now(); await video.play();
   }catch(e){
-    showMsg(location.protocol!=='https:'&&location.hostname!=='localhost'
-      ? '相機只能在 https 網址下開啟。請用 GitHub Pages 的網址打開這個頁面。'
-      : '無法開啟相機：請確認瀏覽器已允許這個網站使用相機（iPhone：設定 › Safari › 相機）。也可以改用「上傳影片」。');
+    showMsg(location.protocol!=='https:'&&location.hostname!=='localhost' ? '相機只能在 https 網址下開啟。請用 GitHub Pages 的網址打開。'
+      : '無法開啟相機：請允許這個網站使用相機（iPhone：設定 › Safari › 相機），並用 Safari 或 Chrome 開啟，不要用 LINE / IG 內建瀏覽器。');
   }
+  await tiltP;
 };
-
-/* ---------- depth model (Depth Anything V2 small, runs on-device) ---------- */
-const btnDepth=document.getElementById('btnDepth');
-let RawImageCls=null;
-async function runDepth(ts){
-  depthBusy=true; lastDepth=ts; const t0=performance.now();
-  try{
-    const w=256, h=Math.round(256*CH/CW); if(cap.width!==w||cap.height!==h){ cap.width=w; cap.height=h; }
-    capCtx.drawImage(stage,0,0,w,h);
-    const out=await depthPipe(RawImageCls.fromCanvas(cap));
-    const d=out.depth; depthMap={data:d.data,width:d.width,height:d.height,ch:d.channels||1};
-    depthMs=depthMs? depthMs*0.8+(performance.now()-t0)*0.2 : performance.now()-t0;
-  }catch(e){ console.error(e); }
-  depthBusy=false;
-}
-btnDepth.onclick=async()=>{
-  if(depthOn){ depthOn=false; depthMap=null; btnDepth.setAttribute('aria-pressed','false'); return; }
-  depthOn=true; btnDepth.setAttribute('aria-pressed','true');
-  if(depthPipe) return;
-  msgEl.classList.add('info'); showMsg('正在下載深度模型（約 25MB，第一次較久，之後會快取）…');
-  try{
-    const tf=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.1');
-    RawImageCls=tf.RawImage;
-    const webgpu=!!navigator.gpu;
-    try{ depthPipe=await tf.pipeline('depth-estimation','onnx-community/depth-anything-v2-small',{device:webgpu?'webgpu':'wasm',dtype:webgpu?'fp16':'q8'}); }
-    catch(e){ depthPipe=await tf.pipeline('depth-estimation','onnx-community/depth-anything-v2-small',{device:'wasm',dtype:'q8'}); }
-    showMsg(''); msgEl.classList.remove('info');
-  }catch(e){
-    console.error(e); depthOn=false; btnDepth.setAttribute('aria-pressed','false'); msgEl.classList.remove('info');
-    showMsg('深度模型載入失敗（可能是網路或瀏覽器不支援）。紋理分析仍可正常使用。');
-  }
-};
-
 if('wakeLock' in navigator){ document.addEventListener('click',()=>{ navigator.wakeLock.request('screen').catch(()=>{}); },{once:true}); }
 
 (document.fonts? document.fonts.load(`700 20px "Chakra Petch"`).catch(()=>{}) : Promise.resolve()).finally(()=>{ resize(); requestAnimationFrame(frame); });
